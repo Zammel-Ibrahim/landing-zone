@@ -448,3 +448,55 @@ resource "aws_lambda_permission" "allow_sns" {
   principal     = "sns.amazonaws.com"
   source_arn    = aws_sns_topic.failover.arn
 }
+
+
+# Add NatGateway,Elastic Ip and route entries to the internet gateway
+
+# --- Elastic IPs for NAT (one per public subnet / AZ)
+resource "aws_eip" "nat" {
+  for_each = aws_subnet.public
+  vpc = true
+  tags = {
+    Name = "nat-eip-${each.key}"
+  }
+}
+
+# --- NAT Gateways (one per public subnet / AZ)
+resource "aws_nat_gateway" "nat" {
+  for_each = aws_subnet.public
+  allocation_id = aws_eip.nat[each.key].id
+  subnet_id     = each.value.id
+  tags = {
+    Name = "nat-gw-${each.key}"
+  }
+
+  depends_on = [aws_internet_gateway.igw]
+}
+
+# --- Private route tables (one per AZ) that route 0.0.0.0/0 to the NAT in the same AZ
+resource "aws_route_table" "private" {
+  for_each = aws_subnet.public
+  vpc_id = aws_vpc.main.id
+  tags = {
+    Name = "private-rt-${each.key}"
+  }
+
+  route {
+    cidr_block     = "0.0.0.0/0"
+    nat_gateway_id = aws_nat_gateway.nat[each.key].id
+  }
+}
+
+# --- Associate private_gie subnets to their AZ-specific private route table
+resource "aws_route_table_association" "private_gie_assoc" {
+  for_each = aws_subnet.private_gie
+  subnet_id      = each.value.id
+  route_table_id = aws_route_table.private[each.key].id
+}
+
+# --- Associate private_gic subnets to their AZ-specific private route table
+resource "aws_route_table_association" "private_gic_assoc" {
+  for_each = aws_subnet.private_gic
+  subnet_id      = each.value.id
+  route_table_id = aws_route_table.private[each.key].id
+}
