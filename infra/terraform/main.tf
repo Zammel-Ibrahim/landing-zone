@@ -247,16 +247,36 @@ resource "aws_instance" "web_gie" {
   tags = { Name = "web-gie-${each.key}" }
 
   user_data = <<-EOF
-              #!/bin/bash
-              set -e
-              yum update -y
-              yum install -y httpd postgresql-server
-              systemctl enable httpd
-              systemctl start httpd
-              postgresql-setup initdb
-              systemctl enable postgresql
-              systemctl start postgresql
-              EOF
+            #!/bin/bash
+            set -e
+
+            # Mise à jour et installation
+            dnf update -y
+            dnf install -y httpd
+            amazon-linux-extras enable postgresql18
+            dnf install -y postgresql18-server
+
+            # Activation des services
+            systemctl enable httpd
+            systemctl start httpd
+
+            # Création des dossiers web1 et web2
+            mkdir -p /var/www/html/web1
+            mkdir -p /var/www/html/web2
+
+            # Fichiers index.html
+            echo "<h1>web1 - $(hostname)</h1>" > /var/www/html/web1/index.html
+            echo "<h1>web2 - $(hostname)</h1>" > /var/www/html/web2/index.html
+
+            # Fichiers health
+            echo "OK" > /var/www/html/web1/health
+            echo "OK" > /var/www/html/web2/health
+
+            # Initialisation PostgreSQL 18
+            /usr/bin/postgresql-setup --initdb
+            systemctl enable postgresql
+            systemctl start postgresql
+            EOF
 }
 
 resource "aws_instance" "web_gic" {
@@ -270,16 +290,36 @@ resource "aws_instance" "web_gic" {
   tags = { Name = "web-gic-${each.key}" }
 
   user_data = <<-EOF
-              #!/bin/bash
-              set -e
-              yum update -y
-              yum install -y httpd postgresql-server
-              systemctl enable httpd
-              systemctl start httpd
-              postgresql-setup initdb
-              systemctl enable postgresql
-              systemctl start postgresql
-              EOF
+            #!/bin/bash
+            set -e
+
+            # Mise à jour et installation
+            dnf update -y
+            dnf install -y httpd
+            amazon-linux-extras enable postgresql18
+            dnf install -y postgresql18-server
+
+            # Activation des services
+            systemctl enable httpd
+            systemctl start httpd
+
+            # Création des dossiers web1 et web2
+            mkdir -p /var/www/html/web1
+            mkdir -p /var/www/html/web2
+
+            # Fichiers index.html
+            echo "<h1>web1 - $(hostname)</h1>" > /var/www/html/web1/index.html
+            echo "<h1>web2 - $(hostname)</h1>" > /var/www/html/web2/index.html
+
+            # Fichiers health
+            echo "OK" > /var/www/html/web1/health
+            echo "OK" > /var/www/html/web2/health
+
+            # Initialisation PostgreSQL 18
+            /usr/bin/postgresql-setup --initdb
+            systemctl enable postgresql
+            systemctl start postgresql
+            EOF
 }
 
 # NLB + target group for HAProxy instances
