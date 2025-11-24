@@ -206,10 +206,11 @@ resource "aws_instance" "haproxy" {
   user_data = <<-EOF
               #!/bin/bash
               set -e
-              yum update -y
-              yum install -y haproxy
+              dnf update -y
+              dnf install -y haproxy
               systemctl enable haproxy
-              cat > /etc/haproxy/haproxy.cfg <<HAPROXYCFG
+
+              cat > /etc/haproxy/haproxy.cfg <<'HAPROXYCFG'
               global
                 log /dev/log local0
               defaults
@@ -218,20 +219,35 @@ resource "aws_instance" "haproxy" {
                 timeout connect 5s
                 timeout client  50s
                 timeout server  50s
+
               frontend http-in
                 bind *:80
                 acl is_gie path_beg /gie
                 acl is_gic path_beg /gic
+                acl is_health path_beg /health
+                http-request return status 200 content-type "text/plain" lf-string "OK" if is_health
                 use_backend backend_gie if is_gie
                 use_backend backend_gic if is_gic
+                default_backend backend_gie
+
               backend backend_gie
+                mode http
                 balance roundrobin
+                option httpchk GET /web1/health
+                http-check expect status 200
                 cookie SRV insert indirect nocache
+                server web1 10.0.2.10:80 check
+                server web2 10.0.2.11:80 check
+
               backend backend_gic
+                mode http
                 balance roundrobin
+                option httpchk GET /web2/health
+                http-check expect status 200
                 cookie SRV insert indirect nocache
-              HAPROXYCFG
-              systemctl restart haproxy
+                server web1 10.0.5.10:80 check
+                server web2 10.0.5.11:80 check
+              
               EOF
 }
 
